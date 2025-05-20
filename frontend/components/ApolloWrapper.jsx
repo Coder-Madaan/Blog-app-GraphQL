@@ -4,7 +4,7 @@ import { ApolloClient, InMemoryCache, ApolloProvider } from '@apollo/client';
 
 export function ApolloWrapper({ children }) {
   const client = new ApolloClient({
-    uri: 'http://localhost:4000/graphql',
+    uri: `${process.env.NEXT_PUBLIC_API_URL}/graphql`,
     cache: new InMemoryCache(),
   });
 

@@ -4,6 +4,7 @@
 import { gql, useQuery } from '@apollo/client';
 import Link from 'next/link';
 
+import { redirect } from 'next/navigation';
 const GET_POSTS = gql`
   query GetPosts {
     posts {
