@@ -3,6 +3,12 @@ const express = require('express');
 const { MongoClient, ObjectId  } = require('mongodb');
 const cors = require('cors');
 const dotenv = require('dotenv');
+// For Node.js versions < 18, we need node-fetch
+// For Node.js versions >= 18, global fetch is available
+const fetch = (...args) => 
+  import('node-fetch').then(({default: fetch}) => fetch(...args))
+    .catch(() => global.fetch(...args)); // Fallback to global fetch if available
+
 dotenv.config();
 
 const typeDefs = `
@@ -52,9 +58,13 @@ const resolvers = {
 
 async function startServer() {
   const app = express();
-
   // Enable CORS
   app.use(cors());
+  
+  // Add health check route for pinging
+  app.get('/health', (req, res) => {
+    res.status(200).send('Server is up and running!');
+  });
 
   // Database connection setup
   let db;
@@ -83,17 +93,39 @@ async function startServer() {
   await apolloServer.start();
   
   apolloServer.applyMiddleware({ app, path: '/graphql' });
-
   const PORT = process.env.PORT || 4000;
-  app.listen(PORT, () => {
+  const server = app.listen(PORT, () => {
     console.log(`🚀 Server ready at http://localhost:${PORT}${apolloServer.graphqlPath}`);
+    
+    const selfPingInterval = 5 * 60 * 1000; // 5 minutes in milliseconds
+    
+    // Function to ping our own health endpoint
+    const pingServer = () => {
+      const serverUrl = process.env.SERVER_URL || `http://localhost:${PORT}`;
+      console.log(`📡 Pinging server at ${serverUrl}/health to prevent sleep...`);
+      
+      fetch(`${serverUrl}/health`)
+        .then(response => {
+          if (response.ok) {
+            console.log('✅ Server successfully pinged');
+          } else {
+            console.error('❌ Failed to ping server:', response.status);
+          }
+        })
+        .catch(error => {
+          console.error('❌ Error pinging server:', error.message);
+        });
+    };
+    
+    // Start the ping interval
+    const intervalId = setInterval(pingServer, selfPingInterval);
+    
+    // Clean up interval on server shutdown
+    process.on('SIGTERM', () => {
+      clearInterval(intervalId);
+    });
   });
 
-  process.on('SIGTERM', () => {
-    console.log('Shutting down server...');
-    client.close();
-    process.exit(0);
-  });
 }
 
 startServer().catch(error => {
